@@ -1,0 +1,529 @@
+openapi: 3.0.3
+info:
+  title: Scholarship Search API
+  version: 1.0.0
+  description: >
+    Public, read-only API powering a scholarship search tool for high school
+    students. All endpoints are GET-only and select from a bundled, read-only
+    SQLite file — there are no write endpoints.
+servers:
+  - url: /api/v1
+    description: API base path
+tags:
+  - name: Scholarships
+  - name: Meta
+  - name: Health
+paths:
+  /scholarships:
+    get:
+      tags: [Scholarships]
+      summary: Search and filter scholarships
+      description: All query params are optional and combine with AND.
+      parameters:
+        - $ref: '#/components/parameters/q'
+        - $ref: '#/components/parameters/state'
+        - $ref: '#/components/parameters/institution_type'
+        - $ref: '#/components/parameters/citizenship'
+        - $ref: '#/components/parameters/gpa_max'
+        - $ref: '#/components/parameters/amount_min'
+        - $ref: '#/components/parameters/deadline_before'
+        - $ref: '#/components/parameters/no_essay'
+        - $ref: '#/components/parameters/grade_level'
+        - $ref: '#/components/parameters/gender'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: A page of matching scholarships.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Scholarship'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /scholarships/facets:
+    get:
+      tags: [Scholarships]
+      summary: Facet counts for the current filtered result set
+      description: >
+        Accepts the same filter params as `/scholarships` (minus `page`/`limit`).
+        Each facet dimension's counts are computed with every *other* active
+        filter applied but ignoring that dimension's own filter, so the UI can
+        show "how many results if I also pick X" without a round trip per
+        filter chip.
+      parameters:
+        - $ref: '#/components/parameters/q'
+        - $ref: '#/components/parameters/state'
+        - $ref: '#/components/parameters/institution_type'
+        - $ref: '#/components/parameters/citizenship'
+        - $ref: '#/components/parameters/gpa_max'
+        - $ref: '#/components/parameters/amount_min'
+        - $ref: '#/components/parameters/deadline_before'
+        - $ref: '#/components/parameters/no_essay'
+        - $ref: '#/components/parameters/grade_level'
+        - $ref: '#/components/parameters/gender'
+      responses:
+        '200':
+          description: Facet counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Facets'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /scholarships/{slug}:
+    get:
+      tags: [Scholarships]
+      summary: Full detail for one scholarship
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 100-club-of-arizona-scholarship
+      responses:
+        '200':
+          description: The scholarship.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scholarship'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /meta/states:
+    get:
+      tags: [Meta]
+      summary: Static list of state names for populating a filter dropdown
+      responses:
+        '200':
+          description: List of state names.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                    example: ['Alabama', 'Alaska', 'Arizona']
+
+  /meta/institution-types:
+    get:
+      tags: [Meta]
+      summary: Static list of institution types for populating a filter dropdown
+      responses:
+        '200':
+          description: List of institution types.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                    example: ['four-year college', 'two-year college', 'trade/technical school']
+
+  /meta/citizenships:
+    get:
+      tags: [Meta]
+      summary: Static list of citizenship values for populating a filter dropdown
+      responses:
+        '200':
+          description: List of citizenship values.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+                    example: ['US', 'Canada', 'International']
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      description: Confirms the bundled SQLite file opens and is queryable.
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  scholarship_count:
+                    type: integer
+                    example: 5959
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    q:
+      name: q
+      in: query
+      description: Free-text search against name, provider, description, and extra_criteria (FTS5).
+      schema:
+        type: string
+      example: engineering
+    state:
+      name: state
+      in: query
+      description: State name.
+      schema:
+        type: string
+      example: California
+    institution_type:
+      name: institution_type
+      in: query
+      schema:
+        type: string
+        enum: ['four-year college', 'two-year college', 'trade/technical school']
+    citizenship:
+      name: citizenship
+      in: query
+      schema:
+        type: string
+        enum: ['US', 'Canada', 'International']
+    gpa_max:
+      name: gpa_max
+      in: query
+      description: Return scholarships whose min_gpa is <= this value (or has no GPA requirement) — i.e. the student qualifies.
+      schema:
+        type: number
+        minimum: 0
+        maximum: 5
+      example: 3.5
+    amount_min:
+      name: amount_min
+      in: query
+      description: Filter on amount_max >= this value.
+      schema:
+        type: integer
+        minimum: 0
+      example: 1000
+    deadline_before:
+      name: deadline_before
+      in: query
+      description: 'MM-DD string. Only applies to scholarships with deadline_type = fixed_annual.'
+      schema:
+        type: string
+        pattern: '^\d{2}-\d{2}$'
+      example: '06-30'
+    no_essay:
+      name: no_essay
+      in: query
+      description: When true, only return scholarships with essay_required = false.
+      schema:
+        type: boolean
+    grade_level:
+      name: grade_level
+      in: query
+      description: Currently only 'high_school' is populated in the source data.
+      schema:
+        type: string
+      example: high_school
+    gender:
+      name: gender
+      in: query
+      schema:
+        type: string
+        enum: ['Female', 'Male']
+    sort:
+      name: sort
+      in: query
+      description: 'Default: relevance if q is present, else deadline. relevance without q falls back to deadline.'
+      schema:
+        type: string
+        enum: [deadline, amount, relevance]
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: Invalid query parameter.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: invalid_param
+              message: gpa_max must be a number between 0 and 5
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: not_found
+              message: No scholarship found with slug "does-not-exist"
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: internal_error
+              message: Something went wrong. Please try again later.
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+          required: [code, message]
+      required: [error]
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        has_more:
+          type: boolean
+      required: [page, limit, total, has_more]
+
+    FacetValue:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+      required: [name, count]
+
+    Facets:
+      type: object
+      properties:
+        states:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetValue'
+        institution_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetValue'
+        citizenships:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetValue'
+      required: [states, institution_types, citizenships]
+
+    Scholarship:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        provider_name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        source_url:
+          type: string
+          nullable: true
+        apply_url:
+          type: string
+          nullable: true
+        application_method:
+          type: string
+          nullable: true
+          enum: ['Online', 'Email', null]
+        contact_email:
+          type: string
+          nullable: true
+        amount:
+          type: object
+          properties:
+            min:
+              type: integer
+              nullable: true
+            max:
+              type: integer
+              nullable: true
+            type:
+              type: string
+              nullable: true
+              enum: ['fixed', 'varies', null]
+        num_awards:
+          type: integer
+          nullable: true
+        deadline:
+          type: object
+          properties:
+            mmdd:
+              type: string
+              nullable: true
+              description: 'MM-DD, recurring annual, no year.'
+            type:
+              type: string
+              nullable: true
+              enum: ['fixed_annual', 'rolling', 'varies', null]
+        eligibility:
+          type: object
+          properties:
+            min_gpa:
+              type: number
+              nullable: true
+            age_min:
+              type: integer
+              nullable: true
+            age_max:
+              type: integer
+              nullable: true
+            grade_level:
+              type: string
+              nullable: true
+            gender:
+              type: string
+              nullable: true
+              enum: ['Female', 'Male', null]
+            ethnicity:
+              type: string
+              nullable: true
+            has_state_restriction:
+              type: boolean
+              description: '406 scholarships have this true with no resolved state list (source ambiguity).'
+            states:
+              type: array
+              items:
+                type: string
+            institution_types:
+              type: array
+              items:
+                type: string
+            citizenships:
+              type: array
+              items:
+                type: string
+            military_branches:
+              type: array
+              items:
+                type: string
+            disability_types:
+              type: array
+              items:
+                type: string
+        requirements:
+          type: object
+          properties:
+            essay_required:
+              type: boolean
+            transcript_required:
+              type: boolean
+            recommendation_required:
+              type: boolean
+            interview_required:
+              type: boolean
+            financial_need_required:
+              type: boolean
+            test_scores_required:
+              type: boolean
+            photo_required:
+              type: boolean
+            resume_required:
+              type: boolean
+            community_service_required:
+              type: boolean
+            contest_entry_required:
+              type: boolean
+            application_form_required:
+              type: boolean
+            application_fee_required:
+              type: boolean
+            portfolio_required:
+              type: boolean
+            drivers_license_required:
+              type: boolean
+            autobiography_required:
+              type: boolean
+            military_service_required:
+              type: boolean
+            special_requirements_flag:
+              type: boolean
+        extra_criteria:
+          type: array
+          items:
+            type: string
+          description: Free-text eligibility notes that did not fit a structured column.
+        source:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - slug
+        - name
+        - amount
+        - deadline
+        - eligibility
+        - requirements
+        - extra_criteria
+        - source
+        - is_active
+        - created_at
+        - updated_at
