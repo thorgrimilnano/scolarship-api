@@ -6,6 +6,8 @@ Build a polished, responsive single-page web app called "ScholarSearch" that hel
 
 OpenAPI spec: https://scolarship-api.vercel.app/api/openapi.json Base URL: https://scolarship-api.vercel.app/api/v1 (put it in a single constant so it is easy to change). The dataset has about 5,959 scholarships.
 
+API & Proxy: Put the upstream base URL (https://scolarship-api.vercel.app/api/v1) in a single server-side constant and proxy all GET /api/v1/* requests through a lightweight Express backend (server.ts) so the frontend fetches from same-origin /api/v1/*. Do not call the external domain directly from the browser (the upstream API does not send Access-Control-Allow-Origin headers).
+
 Endpoints:
 
 * GET /scholarships: search and filter. All params are optional and combine with AND.
